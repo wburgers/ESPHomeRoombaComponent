@@ -1,29 +1,22 @@
 esphome:
-  name: roomba_001
+  name: roomba
   platform: ESP8266
   board: d1_mini
   includes:
-    - ../ESPHomeRoombaComponent.h
+    - roomba_component.h
   libraries:
     - Roomba=https://github.com/Apocrathia/Roomba
 
 substitutions:
-  # IMPORTANT NOTE: If you change the substitution name value, the state_topic/command_topic need to change as well.
-  name: "roomba_001"
-  # state topic, command topic, BRC pin, polling interval in milliseconds
-  init: 'RoombaComponent::instance("roomba_001/state", "roomba_001/command", D5, 1000);'
+  name: "roomba"
+  # BRC pin, polling interval in milliseconds
+  init: 'RoombaComponent::instance(D5, 1000);'
 
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
-mqtt:
-  broker: !secret mqtt_broker
-  discovery: true
-
 logger:
-  baud_rate: 0
-  level: info
 
 ota:
 
@@ -31,12 +24,11 @@ custom_component:
   - lambda: |-
       auto r = ${init}
       return {r};
-
 sensor:
  - platform: custom
    lambda: |-
       auto r = ${init}
-      return {r->distanceSensor, r->voltageSensor, r->currentSensor, r->chargeSensor, r->capacitySensor};
+      return {r->distanceSensor, r->voltageSensor, r->currentSensor, r->chargeSensor, r->capacitySensor, r->batteryPercentSensor};
 
    sensors:
      - name: "${name} distance"
@@ -54,17 +46,15 @@ sensor:
      - name: "${name} capacity"
        unit_of_measurement: "mAh"
        accuracy_decimals: 0
-
-binary_sensor: 
-  - platform: status
-    name: "${name} Status"
-
+     - name: "${name} battery"
+       unit_of_measurement: "%"
+       accuracy_decimals: 0
+       
+text_sensor:
   - platform: custom
     lambda: |-
-       auto r = ${init}
-       return {r->chargingBinarySensor, r->dockedBinarySensor, r->cleaningBinarySensor};
-
-    binary_sensors:
-      - name: "${name} charging"
-      - name: "${name} docked"
-      - name: "${name} cleaning"
+      auto r = ${init}
+      return {r->activitySensor};
+      
+    text_sensors:
+      - name: "${name} activity"
