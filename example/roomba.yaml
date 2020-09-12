@@ -58,3 +58,18 @@ text_sensor:
       
     text_sensors:
       - name: "${name} activity"
+
+# remote_transmitter:
+#   pin: D2
+#   carrier_duty_percent: 50%
+  
+# switch:
+#   - platform: template
+#     id: "roomba_clean"
+#     name: "Roomba Clean"
+#     icon: "mdi:robot-vacuum"
+#     turn_on_action:
+#       - remote_transmitter.transmit_raw:
+#           repeat: 30
+#           carrier_frequency: 39kHz
+#           code: [2872,-999,897,-2872,897,-2872,897,-2872,2872,-999,897,-2872,897,-2872,897] 
