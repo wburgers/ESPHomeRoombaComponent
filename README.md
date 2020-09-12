@@ -23,3 +23,8 @@ But using a esp-01 or esp-12 series and some single braid wire I have managed to
 Copy the contents of the `ESPRoombaHomeComponent.h` and `example/roomba.yaml` into your esphome config folder, change accordingly.
 
 Flash onto new device and connect circuit.
+
+
+## Motivation
+
+Besides the obvious, connecting your vacuum to your automation system, it also does so completly inside a private and controlled ecosystem. As I was about to replace this unit due to the "hacky feel" of using the IR led, as the unit was shipped bugged and there's not a high availability of create cables for a patch, but all other solutions had me locked into a proprietary system such as mi home, or tuya with smart life; sure there are roundabout ways of both interfacing with them through Home assistant etc, and do so locally. They all seemingly lacked the future proofing and control I wanted. With this setup there is nothing really stopping you from a full on LiDar setup and room control!
