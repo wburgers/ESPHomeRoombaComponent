@@ -16,6 +16,8 @@ Alternatively using the IR led:
 
 *Depending on your Roomba model, you might be unlucky as me and have a bug that does not allow the device to wake from brc pin when it goes into passive mode during trickle charging. To circumvent this I copied my code from a previous general controller I had stationed in the kitchen for 433mhz and IR controlling that sends the start code with and IR led to the roomba, it need a clear sight of the roomba IR sensor over a short distance.
 
+If you need this, uncomment the remote transmitter switch section in the `roomba.yaml` and use the switch to wake and clean. 
+
 ## Placement
 
 The Wemos D1 mini is small enough to [fit into the compartment by one of the wheels](https://community-home-assistant-assets.s3.dualstack.us-west-2.amazonaws.com/optimized/2X/a/a258c7253f8bd3fe76ad9e7aa1202b60bd113d74_2_496x600.jpg). 
