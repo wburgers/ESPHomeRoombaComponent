@@ -65,7 +65,6 @@ class RoombaComponent : public PollingComponent, public CustomAPIDevice {
         digitalWrite(this->brcPin, HIGH);
 
         this->roomba.start();
-        this->brc_wakeup();
         register_service(&RoombaComponent::on_command, "command", {"command"});
     }
 
