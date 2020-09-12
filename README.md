@@ -6,7 +6,11 @@ In addition I did not want the Roomba device to communicate over MQTT, it instea
 ## Hardware
 
 ## Wiring Guide
- Both the wiring diagrams for brc and IR modes will be supplied in this repo shortly.
+Using the brc pin we get the following:
+![brc wiring](https://github.com/Ceiku/ESPHomeRoombaComponent/blob/master/esp_roomba_brc.PNG)
+
+Alternatively using the IR led:
+![IR wiring](https://github.com/Ceiku/ESPHomeRoombaComponent/blob/master/esp_roomba_IR.PNG)
 
 ## Special Notes
 
