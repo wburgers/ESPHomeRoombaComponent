@@ -1,25 +1,21 @@
 #include "esphome.h"
 #include <Roomba.h>
 
-class RoombaComponent : public PollingComponent, public CustomAPIDevice { 
+class RoombaComponent : public PollingComponent, public CustomAPIDevice {
   protected:
     uint8_t brcPin;
     uint32_t updateInterval;
+    uint8_t chargingState;
     Roomba roomba;
-    bool IR = false;
 
     void brc_wakeup() {
-      // Roomba Wakeup
         digitalWrite(this->brcPin, LOW);
         delay(500);
         digitalWrite(this->brcPin, HIGH);
         delay(100);
     }
 
-
     void on_command(std::string command) {
-        this->IR_wakeup();
-        
         if (command == "turn_on" || command == "turn_off" || command == "start" || command == "stop")
             this->roomba.cover();
         else if (command == "dock" || command == "return_to_base")
@@ -30,16 +26,30 @@ class RoombaComponent : public PollingComponent, public CustomAPIDevice {
             this->roomba.spot();
     }
 
+    inline const char* ToString(uint8_t chargeState)
+    {
+        switch (chargeState)
+        {
+            case Roomba::ChargeStateNotCharging:              return "NotCharging";
+            case Roomba::ChargeStateReconditioningCharging:   return "ReconditioningCharging";
+            case Roomba::ChargeStateFullChanrging:            return "FullChanrging";
+            case Roomba::ChargeStateTrickleCharging:          return "TrickleCharging";
+            case Roomba::ChargeStateWaiting:                  return "Waiting";
+            case Roomba::ChargeStateFault:                    return "Fault";
+            default:      return "Unknow Charging State";
+        }
+    }
+
     std::string get_activity(uint8_t charging, int16_t current) {
-      bool chargingState = charging == Roomba::ChargeStateReconditioningCharging 
-        || charging == Roomba::ChargeStateFullChanrging 
+      bool isCharging = charging == Roomba::ChargeStateReconditioningCharging
+        || charging == Roomba::ChargeStateFullChanrging
         || charging == Roomba::ChargeStateTrickleCharging;
 
-      if (current > -50) 
+      if (current > -50)
         return "Docked";
-      else if (chargingState) 
+      else if (isCharging)
         return "Charging";
-      else if (current < -300) 
+      else if (current < -300)
         return "Cleaning";
       return "Lost";
     }
@@ -51,6 +61,7 @@ class RoombaComponent : public PollingComponent, public CustomAPIDevice {
     Sensor *chargeSensor;
     Sensor *capacitySensor;
     Sensor *batteryPercentSensor;
+    TextSensor *chargingSensor;
     TextSensor *activitySensor;
 
     static RoombaComponent* instance(uint8_t brcPin, uint32_t updateInterval)
@@ -109,30 +120,35 @@ class RoombaComponent : public PollingComponent, public CustomAPIDevice {
       std::string activity = this->get_activity(charging, current);
 
       // Only publish new states if there was a change
-      if (this->distanceSensor->state != distance) 
+      if (this->distanceSensor->state != distance)
           this->distanceSensor->publish_state(distance);
 
-      if (this->voltageSensor->state != voltage) 
+      if (this->voltageSensor->state != voltage)
           this->voltageSensor->publish_state(voltage);
 
-      if (this->currentSensor->state != current) 
+      if (this->currentSensor->state != current)
           this->currentSensor->publish_state(current);
 
-      if (this->chargeSensor->state != charge) 
+      if (this->chargeSensor->state != charge)
           this->chargeSensor->publish_state(charge);
 
-      if (this->capacitySensor->state != capacity) 
+      if (this->capacitySensor->state != capacity)
           this->capacitySensor->publish_state(capacity);
-      
+
       if (this->batteryPercentSensor->state != battery_level)
         this->batteryPercentSensor->publish_state(battery_level);
 
-      if (activity.compare(this->activitySensor->state) == 0)
+      if (this->chargingState != charging) {
+        this->chargingState = charging;
+        this->chargingSensor->publish_state(ToString(charging));
+      }
+
+      if (activity.compare(this->activitySensor->state) != 0)
         this->activitySensor->publish_state(activity);
     }
 
-  private: 
-    RoombaComponent(uint8_t brcPin, uint32_t updateInterval) : 
+  private:
+    RoombaComponent(uint8_t brcPin, uint32_t updateInterval) :
         PollingComponent(updateInterval), roomba(&Serial, Roomba::Baud115200)
     {
         this->brcPin = brcPin;
@@ -144,6 +160,7 @@ class RoombaComponent : public PollingComponent, public CustomAPIDevice {
         this->chargeSensor = new Sensor();
         this->capacitySensor = new Sensor();
         this->batteryPercentSensor = new Sensor();
+        this->chargingSensor = new TextSensor();
         this->activitySensor = new TextSensor();
     }
 };

@@ -3,9 +3,11 @@ esphome:
   platform: ESP8266
   board: d1_mini
   includes:
-    - roomba_component.h
+    - ESPHomeRoombaComponent.h
   libraries:
     - Roomba=https://github.com/Apocrathia/Roomba
+  platformio_options:
+    build_flags: -D HAVE_HWSERIAL0
 
 substitutions:
   name: "roomba"
@@ -29,7 +31,6 @@ sensor:
    lambda: |-
       auto r = ${init}
       return {r->distanceSensor, r->voltageSensor, r->currentSensor, r->chargeSensor, r->capacitySensor, r->batteryPercentSensor};
-
    sensors:
      - name: "${name} distance"
        unit_of_measurement: "mm"
@@ -54,22 +55,7 @@ text_sensor:
   - platform: custom
     lambda: |-
       auto r = ${init}
-      return {r->activitySensor};
-      
+      return {r-> chargingSensor, r->activitySensor};
     text_sensors:
+      - name: "${name} charging state"
       - name: "${name} activity"
-
-# remote_transmitter:
-#   pin: D2
-#   carrier_duty_percent: 50%
-  
-# switch:
-#   - platform: template
-#     id: "roomba_clean"
-#     name: "Roomba Clean"
-#     icon: "mdi:robot-vacuum"
-#     turn_on_action:
-#       - remote_transmitter.transmit_raw:
-#           repeat: 30
-#           carrier_frequency: 39kHz
-#           code: [2872,-999,897,-2872,897,-2872,897,-2872,2872,-999,897,-2872,897,-2872,897] 
