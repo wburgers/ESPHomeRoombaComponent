@@ -1,166 +1,261 @@
 #include "esphome.h"
-#include <Roomba.h>
 
-class RoombaComponent : public PollingComponent, public CustomAPIDevice {
-  protected:
-    uint8_t brcPin;
-    uint32_t updateInterval;
-    uint8_t chargingState;
-    Roomba roomba;
+#define ROOMBA_READ_TIMEOUT 200
 
-    void brc_wakeup() {
-        digitalWrite(this->brcPin, LOW);
-        delay(500);
-        digitalWrite(this->brcPin, HIGH);
-        delay(100);
-    }
+class RoombaComponent : public UARTDevice, public CustomAPIDevice, public PollingComponent {
+	public:
+		//Sensor *distanceSensor;
+		Sensor *voltageSensor;
+		Sensor *currentSensor;
+		Sensor *batteryChargeSensor;
+		Sensor *batteryCapacitySensor;
+		Sensor *batteryPercentSensor;
+		TextSensor *chargingSensor;
+		TextSensor *activitySensor;
 
-    void on_command(std::string command) {
-        if (command == "turn_on" || command == "turn_off" || command == "start" || command == "stop")
-            this->roomba.cover();
-        else if (command == "dock" || command == "return_to_base")
-            this->roomba.dock();
-        else if (command == "locate")
-            this->roomba.playSong(1);
-        else if (command == "spot" || command == "clean_spot")
-            this->roomba.spot();
-    }
+		static RoombaComponent* instance(uint8_t brcPin, UARTComponent *parent, uint32_t updateInterval) {
+			static RoombaComponent* INSTANCE = new RoombaComponent(brcPin, parent, updateInterval);
+			return INSTANCE;
+		}
 
-    inline const char* ToString(uint8_t chargeState)
-    {
-        switch (chargeState)
-        {
-            case Roomba::ChargeStateNotCharging:              return "NotCharging";
-            case Roomba::ChargeStateReconditioningCharging:   return "ReconditioningCharging";
-            case Roomba::ChargeStateFullChanrging:            return "FullChanrging";
-            case Roomba::ChargeStateTrickleCharging:          return "TrickleCharging";
-            case Roomba::ChargeStateWaiting:                  return "Waiting";
-            case Roomba::ChargeStateFault:                    return "Fault";
-            default:      return "Unknow Charging State";
-        }
-    }
+		void setup() override {
+			pinMode(this->brcPin, OUTPUT);
+			digitalWrite(this->brcPin, HIGH);
 
-    std::string get_activity(uint8_t charging, int16_t current) {
-      bool isCharging = charging == Roomba::ChargeStateReconditioningCharging
-        || charging == Roomba::ChargeStateFullChanrging
-        || charging == Roomba::ChargeStateTrickleCharging;
+			register_service(&RoombaComponent::on_command, "command", {"command"});
+		}
 
-      if (current > -50)
-        return "Docked";
-      else if (isCharging)
-        return "Charging";
-      else if (current < -300)
-        return "Cleaning";
-      return "Lost";
-    }
+    	void update() override {
+			uint8_t charging;
+			uint16_t voltage;
+			int16_t current;
+			uint16_t batteryCharge;
+			uint16_t batteryCapacity;
 
-  public:
-    Sensor *distanceSensor;
-    Sensor *voltageSensor;
-    Sensor *currentSensor;
-    Sensor *chargeSensor;
-    Sensor *capacitySensor;
-    Sensor *batteryPercentSensor;
-    TextSensor *chargingSensor;
-    TextSensor *activitySensor;
+			flush();
 
-    static RoombaComponent* instance(uint8_t brcPin, uint32_t updateInterval)
-    {
-        static RoombaComponent* INSTANCE = new RoombaComponent(brcPin, updateInterval);
-        return INSTANCE;
-    }
+			uint8_t sensors[] = {
+				SensorChargingState,
+				SensorVoltage,
+				SensorCurrent,
+				SensorBatteryCharge,
+				SensorBatteryCapacity
+			};
+			uint8_t values[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-    void setup() override
-    {
-        pinMode(this->brcPin, OUTPUT);
-        digitalWrite(this->brcPin, HIGH);
+			bool success = getSensorsList(sensors, sizeof(sensors), values, sizeof(values));
+      		if (!success) {
+				ESP_LOGD("custom", "Could not get sensor values from serial");
+				return;
+			}
 
-        this->roomba.start();
-        register_service(&RoombaComponent::on_command, "command", {"command"});
-    }
+			charging = values[0];
+			voltage = values[1] * 256 + values[2];
+			current = values[3] * 256 + values[4];
+			batteryCharge = values[5] * 256 + values[6];
+      		batteryCapacity = values[7] * 256 + values[8];
+			
+      		std::string activity = this->get_activity(charging, current);
 
-    void update() override
-    {
-      int16_t distance;
-      uint16_t voltage;
-      int16_t current;
-      uint16_t charge;
-      uint16_t capacity;
-      uint8_t charging;
+			float voltageInVolts = (1.0 * voltage) / 1000.0;
+			if (this->voltageSensor->state != voltageInVolts) {
+				this->voltageSensor->publish_state(voltageInVolts);
+			}
 
-      // Flush serial buffers
-      while (Serial.available())
-      {
-          Serial.read();
-      }
-      // https://github.com/Ceiku/Roomba/blob/251e677eb506d7bf27fff7e1bfb72798ef7b7340/Roomba.h#L336-L383
-      uint8_t sensors[] = {
-          Roomba::SensorDistance,       // 2 bytes, mm, signed
-          Roomba::SensorChargingState,  // 1 byte
-          Roomba::SensorVoltage,        // 2 bytes, mV, unsigned
-          Roomba::SensorCurrent,        // 2 bytes, mA, signed
-          Roomba::SensorBatteryCharge,  // 2 bytes, mAh, unsigned
-          Roomba::SensorBatteryCapacity // 2 bytes, mAh, unsigned
-      };
-      uint8_t values[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+			float currentInAmps = (1.0 * current) / 1000.0;
+			if (this->currentSensor->state != currentInAmps) {
+				this->currentSensor->publish_state(currentInAmps);
+			}
 
-      // Serial reading timeout -- https://community.home-assistant.io/t/add-wifi-to-an-older-roomba/23282/52
-      bool success = this->roomba.getSensorsList(sensors, sizeof(sensors), values, sizeof(values));
-      if (!success)
-          return;
+			float chargeInAmpHours = (1.0 * batteryCharge) / 1000.0;
+			if (this->batteryChargeSensor->state != chargeInAmpHours) {
+				this->batteryChargeSensor->publish_state(chargeInAmpHours);
+			}
 
-      distance = values[0] * 256 + values[1];
-      voltage = values[3] * 256 + values[4];
-      current = values[5] * 256 + values[6];
-      charge = values[7] * 256 + values[8];
-      capacity = values[9] * 256 + values[10];
-      charging = values[2];
+			float capacityInAmpHours = (1.0 * batteryCapacity) / 1000.0;
+			if (this->batteryCapacitySensor->state != capacityInAmpHours) {
+				this->batteryCapacitySensor->publish_state(capacityInAmpHours);
+			}
 
-      float battery_level = 100.0 * ((1.0 * charge) / (1.0 * capacity));
-      std::string activity = this->get_activity(charging, current);
+			float battery_level = 100.0 * ((1.0 * batteryCharge) / (1.0 * batteryCapacity));
+			if (this->batteryPercentSensor->state != battery_level) {
+				this->batteryPercentSensor->publish_state(battery_level);
+			}
 
-      // Only publish new states if there was a change
-      if (this->distanceSensor->state != distance)
-          this->distanceSensor->publish_state(distance);
+			if (this->chargingState != charging) {
+				this->chargingState = charging;
+				this->chargingSensor->publish_state(ToString(charging));
+			}
 
-      if (this->voltageSensor->state != voltage)
-          this->voltageSensor->publish_state(voltage);
+			if (activity.compare(this->activitySensor->state) != 0) {
+				this->activitySensor->publish_state(activity);
+			}
+		}
 
-      if (this->currentSensor->state != current)
-          this->currentSensor->publish_state(current);
+	private:
+		uint8_t brcPin;
+		uint8_t chargingState;
+		
+    	RoombaComponent(uint8_t brcPin, UARTComponent *parent, uint32_t updateInterval) : UARTDevice(parent), PollingComponent(updateInterval) {
+			this->brcPin = brcPin;
+			this->voltageSensor = new Sensor();
+			this->currentSensor = new Sensor();
+			this->batteryChargeSensor = new Sensor();
+	        this->batteryCapacitySensor = new Sensor();
+	        this->batteryPercentSensor = new Sensor();
 
-      if (this->chargeSensor->state != charge)
-          this->chargeSensor->publish_state(charge);
+			this->chargingSensor = new TextSensor();
+			this->activitySensor = new TextSensor();
+		}
 
-      if (this->capacitySensor->state != capacity)
-          this->capacitySensor->publish_state(capacity);
+		typedef enum {
+			Sensors7to26					= 0,  //00
+			Sensors7to16					= 1,  //01
+			Sensors17to20					= 2,  //02
+			Sensors21to26					= 3,  //03
+			Sensors27to34					= 4,  //04
+			Sensors35to42					= 5,  //05
+			Sensors7to42					= 6,  //06
+			SensorBumpsAndWheelDrops		= 7,  //07
+			SensorWall						= 8,  //08
+			SensorCliffLeft					= 9,  //09
+			SensorCliffFrontLeft			= 10, //0A
+			SensorCliffFrontRight			= 11, //0B
+			SensorCliffRight				= 12, //0C
+			SensorVirtualWall				= 13, //0D
+			SensorOvercurrents				= 14, //0E
+			//SensorUnused1					= 15, //0F
+			//SensorUnused2					= 16, //10
+			SensorIRByte					= 17, //11
+			SensorButtons					= 18, //12
+			SensorDistance					= 19, //13
+			SensorAngle						= 20, //14
+			SensorChargingState				= 21, //15
+			SensorVoltage					= 22, //16
+			SensorCurrent					= 23, //17
+			SensorBatteryTemperature		= 24, //18
+			SensorBatteryCharge				= 25, //19
+			SensorBatteryCapacity			= 26, //1A
+			SensorWallSignal				= 27, //1B
+			SensoCliffLeftSignal			= 28, //1C
+			SensoCliffFrontLeftSignal		= 29, //1D
+			SensoCliffFrontRightSignal		= 30, //1E
+			SensoCliffRightSignal			= 31, //1F
+			SensorUserDigitalInputs			= 32, //20
+			SensorUserAnalogInput			= 33, //21
+			SensorChargingSourcesAvailable	= 34, //22
+			SensorOIMode					= 35, //23
+			SensorSongNumber				= 36, //24
+			SensorSongPlaying				= 37, //25
+			SensorNumberOfStreamPackets		= 38, //26
+			SensorVelocity					= 39, //27
+			SensorRadius					= 40, //28
+			SensorRightVelocity				= 41, //29
+			SensorLeftVelocity				= 42, //2A
+		} SensorCode;
 
-      if (this->batteryPercentSensor->state != battery_level)
-        this->batteryPercentSensor->publish_state(battery_level);
+		typedef enum {
+			ChargeStateNotCharging				= 0,
+			ChargeStateReconditioningCharging	= 1,
+			ChargeStateFullCharging				= 2,
+			ChargeStateTrickleCharging			= 3,
+			ChargeStateWaiting					= 4,
+			ChargeStateFault					= 5,
+		} ChargeState;
 
-      if (this->chargingState != charging) {
-        this->chargingState = charging;
-        this->chargingSensor->publish_state(ToString(charging));
-      }
+		void brc_wakeup() {
+			digitalWrite(this->brcPin, LOW);
+			delay(1000);
+			digitalWrite(this->brcPin, HIGH);
+			delay(100);
+		}
 
-      if (activity.compare(this->activitySensor->state) != 0)
-        this->activitySensor->publish_state(activity);
-    }
+		void on_command(std::string command) {
+			if (command == "turn_on" || command == "turn_off" || command == "start" || command == "stop") {
+				cover();
+			}
+			else if (command == "dock" || command == "return_to_base") {
+				dock();
+			}
+			else if (command == "locate") {
+				//fix later
+			}
+			else if (command == "spot" || command == "clean_spot") {
+				spot();
+			}
+			else if (command == "wakeup") {
+				this->brc_wakeup();
+			}
+			else if (command == "sleep") {
+				sleep();
+			}
+    	}
 
-  private:
-    RoombaComponent(uint8_t brcPin, uint32_t updateInterval) :
-        PollingComponent(updateInterval), roomba(&Serial, Roomba::Baud115200)
-    {
-        this->brcPin = brcPin;
-        this->updateInterval = updateInterval;
+		void cover() {
+			write(135);
+		}
 
-        this->distanceSensor = new Sensor();
-        this->voltageSensor = new Sensor();
-        this->currentSensor = new Sensor();
-        this->chargeSensor = new Sensor();
-        this->capacitySensor = new Sensor();
-        this->batteryPercentSensor = new Sensor();
-        this->chargingSensor = new TextSensor();
-        this->activitySensor = new TextSensor();
-    }
+		void dock() {
+			write(143);
+		}
+
+		void spot() {
+			write(134);
+		}
+
+		void sleep() {
+			write(133);
+		}
+
+		void flush() {
+			while (available())
+			{
+				read();
+			}
+		}
+
+		bool getSensorsList(uint8_t* packetIDs, uint8_t numPacketIDs, uint8_t* dest, uint8_t len){
+			write(149);
+			write(numPacketIDs);
+			write_array(packetIDs, numPacketIDs);
+			return getData(dest, len);
+		}
+
+		bool getData(uint8_t* dest, uint8_t len) {
+			while (len-- > 0) {
+				unsigned long startTime = millis();
+				while (!available()) {
+					yield();
+					// Look for a timeout
+					if (millis() > startTime + ROOMBA_READ_TIMEOUT)
+					return false;
+				}
+				*dest++ = read();
+			}
+			return true;
+		}
+
+		std::string get_activity(uint8_t charging, int16_t current) {
+			bool isCharging = charging == ChargeStateReconditioningCharging || charging == ChargeStateFullCharging || charging == ChargeStateTrickleCharging;
+			
+			if (current > -50)
+				return "Docked";
+			else if (isCharging)
+				return "Charging";
+			else if (current < -300)
+				return "Cleaning";
+			return "Lost";
+		}
+
+		inline const char* ToString(uint8_t chargeState) {
+			switch (chargeState) {
+				case ChargeStateNotCharging:			return "NotCharging";
+				case ChargeStateReconditioningCharging:	return "ReconditioningCharging";
+				case ChargeStateFullCharging:			return "FullCharging";
+				case ChargeStateTrickleCharging:		return "TrickleCharging";
+				case ChargeStateWaiting:				return "Waiting";
+				case ChargeStateFault:					return "Fault";
+				default:								return "Unknow Charging State";
+			}
+		}
 };
