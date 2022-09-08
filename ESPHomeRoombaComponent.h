@@ -19,13 +19,30 @@ class RoombaComponent : public UARTDevice, public CustomAPIDevice, public Pollin
 		}
 
 		void setup() override {
-			pinMode(this->brcPin, OUTPUT);
-			digitalWrite(this->brcPin, HIGH);
+			// High-impedence on the BRC_PIN
+			// see https://github.com/johnboiles/esp-roomba-mqtt/commit/fa9af14376f740f366a9ecf4cb59dec2419deeb0#diff-34d21af3c614ea3cee120df276c9c4ae95053830d7f1d3deaf009a4625409ad2R140
+			pinMode(this->brcPin, INPUT);
 
 			register_service(&RoombaComponent::on_command, "command", {"command"});
 		}
 
     	void update() override {
+			long now = millis();
+			// Wakeup the roomba at fixed intervals
+			if (now - lastWakeupTime > 50000) {
+				ESP_LOGD("custom", "Time to wakeup");
+				lastWakeupTime = now;
+				if (!wasCleaning) {
+					if (wasDocked) {
+						wake_on_dock();
+					} else {
+						brc_wakeup();
+					}
+				} else {
+					brc_wakeup();
+				}
+			}
+
 			uint8_t charging;
 			uint16_t voltage;
 			int16_t current;
@@ -56,6 +73,8 @@ class RoombaComponent : public UARTDevice, public CustomAPIDevice, public Pollin
       		batteryCapacity = values[7] * 256 + values[8];
 			
       		std::string activity = this->get_activity(charging, current);
+			wasCleaning = activity == "Cleaning";
+			wasDocked = activity == "Docked";
 
 			float voltageInVolts = (1.0 * voltage) / 1000.0;
 			if (this->voltageSensor->state != voltageInVolts) {
@@ -95,6 +114,9 @@ class RoombaComponent : public UARTDevice, public CustomAPIDevice, public Pollin
 	private:
 		uint8_t brcPin;
 		uint8_t chargingState;
+		int lastWakeupTime = 0;
+		bool wasCleaning = false;
+		bool wasDocked = false;
 		
     	RoombaComponent(uint8_t brcPin, UARTComponent *parent, uint32_t updateInterval) : UARTDevice(parent), PollingComponent(updateInterval) {
 			this->brcPin = brcPin;
@@ -164,10 +186,13 @@ class RoombaComponent : public UARTDevice, public CustomAPIDevice, public Pollin
 		} ChargeState;
 
 		void brc_wakeup() {
+			ESP_LOGD("custom", "brc_wakeup");
+			pinMode(this->brcPin, OUTPUT);
 			digitalWrite(this->brcPin, LOW);
-			delay(1000);
-			digitalWrite(this->brcPin, HIGH);
-			delay(100);
+			delay(200);
+			pinMode(this->brcPin, OUTPUT);
+			delay(200);
+			start_oi(); // Start
 		}
 
 		void on_command(std::string command) {
@@ -178,7 +203,7 @@ class RoombaComponent : public UARTDevice, public CustomAPIDevice, public Pollin
 				dock();
 			}
 			else if (command == "locate") {
-				//fix later
+				locate();
 			}
 			else if (command == "spot" || command == "clean_spot") {
 				spot();
@@ -186,10 +211,35 @@ class RoombaComponent : public UARTDevice, public CustomAPIDevice, public Pollin
 			else if (command == "wakeup") {
 				this->brc_wakeup();
 			}
+			else if (command == "wake_om_dock") {
+				this->wake_on_dock();
+			}
 			else if (command == "sleep") {
 				sleep();
+			} else {
+				ESP_LOGD("custom", "unknown command " + command);
 			}
     	}
+
+		void start_oi() {
+			write(128);
+		}
+
+		void locate() {
+			write(141);
+			write(0);
+		}
+
+		void wake_on_dock() {
+			ESP_LOGD("custom", "wake_on_dock");
+			brc_wakeup();
+			// Some black magic from @AndiTheBest to keep the Roomba awake on the dock
+			// See https://github.com/johnboiles/esp-roomba-mqtt/issues/3#issuecomment-402096638
+			delay(10);
+			write(135); // Clean
+			delay(150);
+			write(143); // Dock
+		}
 
 		void cover() {
 			write(135);
