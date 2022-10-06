@@ -92,24 +92,24 @@ class RoombaComponent : public UARTDevice, public CustomAPIDevice, public Pollin
 			wasCleaning = activity == "Cleaning";
 			wasDocked = activity == "Docked";
 
-			float voltageInVolts = (1.0 * voltage) / 1000.0;
-			if (this->voltageSensor->state != voltageInVolts) {
-				this->voltageSensor->publish_state(voltageInVolts);
+			float voltageData = 1.0 * voltage;
+			if (this->voltageSensor->state != voltageData) {
+				this->voltageSensor->publish_state(voltageData);
 			}
 
-			float currentInAmps = (1.0 * current) / 1000.0;
-			if (this->currentSensor->state != currentInAmps) {
-				this->currentSensor->publish_state(currentInAmps);
+			float currentData = 1.0 * current;
+			if (this->currentSensor->state != currentData) {
+				this->currentSensor->publish_state(currentData);
 			}
 
-			float chargeInAmpHours = (1.0 * batteryCharge) / 1000.0;
-			if (this->batteryChargeSensor->state != chargeInAmpHours) {
-				this->batteryChargeSensor->publish_state(chargeInAmpHours);
+			float charge = 1.0 * batteryCharge;
+			if (this->batteryChargeSensor->state != charge) {
+				this->batteryChargeSensor->publish_state(charge);
 			}
 
-			float capacityInAmpHours = (1.0 * batteryCapacity) / 1000.0;
-			if (this->batteryCapacitySensor->state != capacityInAmpHours) {
-				this->batteryCapacitySensor->publish_state(capacityInAmpHours);
+			float capacity = 1.0 * batteryCapacity;
+			if (this->batteryCapacitySensor->state != capacity) {
+				this->batteryCapacitySensor->publish_state(capacity);
 			}
 
 			float battery_level = 100.0 * ((1.0 * batteryCharge) / (1.0 * batteryCapacity));
