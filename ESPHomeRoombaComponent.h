@@ -292,8 +292,23 @@ ESP_LOGI("roomba", "ACK %s", command.c_str());
 		}
 
 		void locate() {
+			uint8_t song[] = {62, 12, 66, 12, 69, 12, 74, 36};
+			safeMode();
+			delay(500);
+			setSong(0, song, sizeof(song));
+			playSong(0);
+		}
+
+		void setSong(uint8_t songNumber, uint8_t data[], uint8_t len){
+			write(140);
+			write(songNumber);
+			write(len >> 1); // 2 bytes per note
+			write_array(data, len);
+		}
+
+		void playSong(uint8_t songNumber){
 			write(141);
-			write(0);
+			write(songNumber);
 		}
 
 		void wake_on_dock() {
