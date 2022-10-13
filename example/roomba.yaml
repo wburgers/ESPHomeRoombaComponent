@@ -7,13 +7,13 @@ esphome:
 
 substitutions:
   name: "roomba"
-  # BRC pin, uart_bus, polling interval in milliseconds
-  init: 'RoombaComponent::instance(D5, id(uart_bus), 10000);'
+  # BRC pin, uart_bus, polling interval in milliseconds, enable hack for lazy 650 wakeup
+  init: 'RoombaComponent::instance(D5, id(uart_bus), 10000, true);'
 
 uart:
   id: uart_bus
-  tx_pin: D1
-  rx_pin: D2
+  tx_pin: TX
+  rx_pin: RX
   baud_rate: 115200
 
 # Enable logging
@@ -52,29 +52,89 @@ sensor:
  - platform: custom
    lambda: |-
       auto r = ${init}
-      return {r->voltageSensor, r->currentSensor, r->batteryChargeSensor, r->batteryCapacitySensor, r->batteryPercentSensor};
+      return {r->voltageSensor, r->currentSensor, r->batteryChargeSensor, r->batteryCapacitySensor, r->batteryPercentSensor, r->batteryTemperatureSensor, r->driveSpeedSensor};
    sensors:
-     - name: "${name} voltage"
-       unit_of_measurement: "V"
-       accuracy_decimals: 2
-     - name: "${name} current"
-       unit_of_measurement: "A"
-       accuracy_decimals: 3
-     - name: "${name} charge"
-       unit_of_measurement: "Ah"
-       accuracy_decimals: 2
-     - name: "${name} capacity"
-       unit_of_measurement: "Ah"
-       accuracy_decimals: 2
-     - name: "${name} battery"
-       unit_of_measurement: "%"
-       accuracy_decimals: 0
-       
+  - name: "${friendly_name} voltage"
+    unit_of_measurement: "V"
+    icon: mdi:sine-wave
+    accuracy_decimals: 2
+    filters:
+    - quantile:
+        window_size: 7
+        send_every: 4
+        send_first_at: 3
+        quantile: .9
+    - multiply: 0.001
+  - name: "${friendly_name} current"
+    unit_of_measurement: "A"
+    icon: mdi:lightning-bolt
+    accuracy_decimals: 3
+    filters:
+    - quantile:
+        window_size: 7
+        send_every: 4
+        send_first_at: 3
+        quantile: .9
+    - multiply: 0.001
+  - name: "${friendly_name} charge"
+    unit_of_measurement: "Ah"
+    icon: mdi:battery-charging
+    accuracy_decimals: 2
+    filters:
+    - quantile:
+        window_size: 7
+        send_every: 4
+        send_first_at: 3
+        quantile: .9
+    - multiply: 0.001
+  - name: "${friendly_name} capacity"
+    unit_of_measurement: "Ah"
+    icon: mdi:battery
+    accuracy_decimals: 2
+    filters:
+    - quantile:
+        window_size: 7
+        send_every: 4
+        send_first_at: 3
+        quantile: .9
+    - multiply: 0.001
+  - name: "${friendly_name} battery"
+    unit_of_measurement: "%"
+    state_class: "measurement"
+    device_class: battery
+    icon: mdi:battery-outline
+    accuracy_decimals: 0
+    filters:
+    - quantile:
+        window_size: 7
+        send_every: 4
+        send_first_at: 3
+        quantile: .9
+  - name: "${friendly_name} temperature"
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer
+    accuracy_decimals: 0
+    filters:
+    - quantile:
+        window_size: 7
+        send_every: 4
+        send_first_at: 3
+        quantile: .9
+  - name: "${name} drive speed"
+    unit_of_measurement: "mm/s"
+    accuracy_decimals: 0
+
+
 text_sensor:
   - platform: custom
     lambda: |-
       auto r = ${init}
-      return {r-> chargingSensor, r->activitySensor};
+      return {r->chargingSensor, r->activitySensor, r->oiModeSensor};
     text_sensors:
       - name: "${name} charging state"
       - name: "${name} activity"
+      - name: "${name} OI mode"
+
+switch:
+  - platform: safe_mode
+    name: "Vacuum Restart (Safe Mode)"

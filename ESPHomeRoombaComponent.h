@@ -10,27 +10,55 @@ class RoombaComponent : public UARTDevice, public CustomAPIDevice, public Pollin
 		Sensor *batteryChargeSensor;
 		Sensor *batteryCapacitySensor;
 		Sensor *batteryPercentSensor;
+		Sensor *batteryTemperatureSensor;
 		TextSensor *chargingSensor;
 		TextSensor *activitySensor;
+		Sensor *driveSpeedSensor;
+		TextSensor *oiModeSensor;
 
-		static RoombaComponent* instance(uint8_t brcPin, UARTComponent *parent, uint32_t updateInterval) {
-			static RoombaComponent* INSTANCE = new RoombaComponent(brcPin, parent, updateInterval);
+		static RoombaComponent* instance(uint8_t brcPin, UARTComponent *parent, uint32_t updateInterval, bool lazy650Enabled) {
+			static RoombaComponent* INSTANCE = new RoombaComponent(brcPin, parent, updateInterval, lazy650Enabled);
 			return INSTANCE;
 		}
 
 		void setup() override {
-			pinMode(this->brcPin, OUTPUT);
-			digitalWrite(this->brcPin, HIGH);
+			if (this->lazy650Enabled) {
+				// High-impedence on the BRC_PIN
+				// see https://github.com/johnboiles/esp-roomba-mqtt/commit/fa9af14376f740f366a9ecf4cb59dec2419deeb0#diff-34d21af3c614ea3cee120df276c9c4ae95053830d7f1d3deaf009a4625409ad2R140
+				pinMode(this->brcPin, INPUT);
+			} else {
+				pinMode(this->brcPin, OUTPUT);
+				digitalWrite(this->brcPin, HIGH);
+			}
 
 			register_service(&RoombaComponent::on_command, "command", {"command"});
 		}
 
     	void update() override {
+			if (this->lazy650Enabled) {
+				long now = millis();
+				// Wakeup the roomba at fixed intervals
+				if (now - lastWakeupTime > 50000) {
+					ESP_LOGD("custom", "Time to wakeup");
+					lastWakeupTime = now;
+					if (!wasCleaning) {
+						if (wasDocked) {
+							wake_on_dock();
+						} else {
+							brc_wakeup();
+						}
+					} else {
+						brc_wakeup();
+					}
+				}
+			}
+
 			uint8_t charging;
 			uint16_t voltage;
 			int16_t current;
 			uint16_t batteryCharge;
 			uint16_t batteryCapacity;
+			int16_t batteryTemperature;
 
 			flush();
 
@@ -39,9 +67,12 @@ class RoombaComponent : public UARTDevice, public CustomAPIDevice, public Pollin
 				SensorVoltage,
 				SensorCurrent,
 				SensorBatteryCharge,
-				SensorBatteryCapacity
+				SensorBatteryCapacity,
+				SensorBatteryTemperature,
+				SensorOIMode
 			};
-			uint8_t values[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+			uint8_t values[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 			bool success = getSensorsList(sensors, sizeof(sensors), values, sizeof(values));
       		if (!success) {
@@ -54,32 +85,40 @@ class RoombaComponent : public UARTDevice, public CustomAPIDevice, public Pollin
 			current = values[3] * 256 + values[4];
 			batteryCharge = values[5] * 256 + values[6];
       		batteryCapacity = values[7] * 256 + values[8];
-			
-      		std::string activity = this->get_activity(charging, current);
+			batteryTemperature = values[9];
+			std::string oiMode = get_oimode(values[10]);
 
-			float voltageInVolts = (1.0 * voltage) / 1000.0;
-			if (this->voltageSensor->state != voltageInVolts) {
-				this->voltageSensor->publish_state(voltageInVolts);
+			std::string activity = get_activity(charging, current);
+			wasCleaning = activity == "Cleaning";
+			wasDocked = activity == "Docked";
+
+			float voltageData = 1.0 * voltage;
+			if (this->voltageSensor->state != voltageData) {
+				this->voltageSensor->publish_state(voltageData);
 			}
 
-			float currentInAmps = (1.0 * current) / 1000.0;
-			if (this->currentSensor->state != currentInAmps) {
-				this->currentSensor->publish_state(currentInAmps);
+			float currentData = 1.0 * current;
+			if (this->currentSensor->state != currentData) {
+				this->currentSensor->publish_state(currentData);
 			}
 
-			float chargeInAmpHours = (1.0 * batteryCharge) / 1000.0;
-			if (this->batteryChargeSensor->state != chargeInAmpHours) {
-				this->batteryChargeSensor->publish_state(chargeInAmpHours);
+			float charge = 1.0 * batteryCharge;
+			if (this->batteryChargeSensor->state != charge) {
+				this->batteryChargeSensor->publish_state(charge);
 			}
 
-			float capacityInAmpHours = (1.0 * batteryCapacity) / 1000.0;
-			if (this->batteryCapacitySensor->state != capacityInAmpHours) {
-				this->batteryCapacitySensor->publish_state(capacityInAmpHours);
+			float capacity = 1.0 * batteryCapacity;
+			if (this->batteryCapacitySensor->state != capacity) {
+				this->batteryCapacitySensor->publish_state(capacity);
 			}
 
 			float battery_level = 100.0 * ((1.0 * batteryCharge) / (1.0 * batteryCapacity));
 			if (this->batteryPercentSensor->state != battery_level) {
 				this->batteryPercentSensor->publish_state(battery_level);
+			}
+
+			if (this->batteryTemperatureSensor->state != batteryTemperature) {
+				this->batteryTemperatureSensor->publish_state(batteryTemperature);
 			}
 
 			if (this->chargingState != charging) {
@@ -90,22 +129,41 @@ class RoombaComponent : public UARTDevice, public CustomAPIDevice, public Pollin
 			if (activity.compare(this->activitySensor->state) != 0) {
 				this->activitySensor->publish_state(activity);
 			}
+
+			if (this->driveSpeedSensor->state != this->speed) {
+				this->driveSpeedSensor->publish_state(this->speed);
+			}
+
+			if (oiMode.compare(this->oiModeSensor->state) != 0) {
+				this->oiModeSensor->publish_state(oiMode);
+			}
 		}
 
 	private:
 		uint8_t brcPin;
 		uint8_t chargingState;
-		
-    	RoombaComponent(uint8_t brcPin, UARTComponent *parent, uint32_t updateInterval) : UARTDevice(parent), PollingComponent(updateInterval) {
+		int lastWakeupTime = 0;
+		bool wasCleaning = false;
+		bool wasDocked = false;
+		int16_t speed = 0;
+
+		bool lazy650Enabled = false;
+
+		RoombaComponent(uint8_t brcPin, UARTComponent *parent, uint32_t updateInterval, bool lazy650Enabled) : UARTDevice(parent), PollingComponent(updateInterval) {
 			this->brcPin = brcPin;
+			this->lazy650Enabled = lazy650Enabled;
 			this->voltageSensor = new Sensor();
 			this->currentSensor = new Sensor();
 			this->batteryChargeSensor = new Sensor();
 	        this->batteryCapacitySensor = new Sensor();
 	        this->batteryPercentSensor = new Sensor();
+			this->batteryTemperatureSensor = new Sensor();
 
 			this->chargingSensor = new TextSensor();
 			this->activitySensor = new TextSensor();
+
+			this->driveSpeedSensor = new Sensor();
+			this->oiModeSensor = new TextSensor();
 		}
 
 		typedef enum {
@@ -164,10 +222,20 @@ class RoombaComponent : public UARTDevice, public CustomAPIDevice, public Pollin
 		} ChargeState;
 
 		void brc_wakeup() {
-			digitalWrite(this->brcPin, LOW);
-			delay(1000);
-			digitalWrite(this->brcPin, HIGH);
-			delay(100);
+			if (this->lazy650Enabled) {
+				ESP_LOGD("custom", "brc_wakeup");
+				pinMode(this->brcPin, OUTPUT);
+				digitalWrite(this->brcPin, LOW);
+				delay(200);
+				pinMode(this->brcPin, OUTPUT);
+				delay(200);
+				start_oi(); // Start
+			} else {
+				digitalWrite(this->brcPin, LOW);
+				delay(1000);
+				digitalWrite(this->brcPin, HIGH);
+				delay(100);
+			}
 		}
 
 		void on_command(std::string command) {
@@ -178,18 +246,116 @@ class RoombaComponent : public UARTDevice, public CustomAPIDevice, public Pollin
 				dock();
 			}
 			else if (command == "locate") {
-				//fix later
+				locate();
 			}
 			else if (command == "spot" || command == "clean_spot") {
 				spot();
 			}
 			else if (command == "wakeup") {
-				this->brc_wakeup();
+				brc_wakeup();
+			}
+			else if (command == "wake_om_dock") {
+				wake_on_dock();
 			}
 			else if (command == "sleep") {
 				sleep();
 			}
+			else if (command == "go_max") {
+	ESP_LOGI("roomba", "go max");
+				alter_speed(1000);
+			} else if (command == "go_faster") {
+	ESP_LOGI("roomba", "go faster");
+				alter_speed(100);
+			} else if (command == "go_slower") {
+	ESP_LOGI("roomba", "slow it down");
+				alter_speed(-100);
+			} else if (command == "go_right") {
+	ESP_LOGI("roomba", "easy right");
+				drive(speed, -250);
+			} else if (command == "go_left") {
+	ESP_LOGI("roomba", "easy left");
+				drive(this->speed, 250);
+			} else if (command == "halt") {
+	ESP_LOGI("roomba", "HALT");
+				this->speed = 0;
+				drive(0,0);
+			} else if (command == "drive") {
+	ESP_LOGI("roomba", "DRIVE mode");
+				this->speed = 0;
+				safeMode();
+			}
+ESP_LOGI("roomba", "ACK %s", command.c_str());
     	}
+
+		void start_oi() {
+			write(128);
+		}
+
+		void locate() {
+			uint8_t song[] = {62, 12, 66, 12, 69, 12, 74, 36};
+			safeMode();
+			delay(500);
+			setSong(0, song, sizeof(song));
+			playSong(0);
+		}
+
+		void setSong(uint8_t songNumber, uint8_t data[], uint8_t len){
+			write(140);
+			write(songNumber);
+			write(len >> 1); // 2 bytes per note
+			write_array(data, len);
+		}
+
+		void playSong(uint8_t songNumber){
+			write(141);
+			write(songNumber);
+		}
+
+		void wake_on_dock() {
+			ESP_LOGD("custom", "wake_on_dock");
+			brc_wakeup();
+			// Some black magic from @AndiTheBest to keep the Roomba awake on the dock
+			// See https://github.com/johnboiles/esp-roomba-mqtt/issues/3#issuecomment-402096638
+			delay(10);
+			write(135); // Clean
+			delay(150);
+			write(143); // Dock
+		}
+
+		void alter_speed(int16_t step) {
+			int16_t speed = this->speed + step;
+
+			if (speed > 500)
+				speed = 500;
+			else if (speed < -500)
+				speed = -500;
+
+			this->speed = speed;
+			this->driveSpeedSensor->publish_state(speed);
+			this->drive(this->speed, 0);
+		}
+
+		void drive(int16_t velocity, int16_t radius) {
+			write(137);
+			write((velocity & 0xff00) >> 8);
+			write(velocity & 0xff);
+			write((radius & 0xff00) >> 8);
+			write(radius & 0xff);
+		}
+
+		void safeMode() {
+			write(131);
+		}
+
+		std::string get_oimode(uint8_t mode) {
+			switch(mode) {
+				case 0: return "off";
+				case 1: return "passive";
+				case 2: return "safe";
+				case 3: return "full";
+				default: return "unknown";
+			}
+		}
 
 		void cover() {
 			write(135);
