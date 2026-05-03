@@ -1,56 +1,45 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import sensor, text_sensor
-from esphome.const import (
-	CONF_ID,
-	CONF_VOLTAGE,
-	UNIT_VOLT,
-	DEVICE_CLASS_VOLTAGE,
-	CONF_CURRENT,
-	UNIT_AMPERE,
-	DEVICE_CLASS_CURRENT,
-	STATE_CLASS_MEASUREMENT,
-)
+from esphome.components import sensor
+from esphome.const import CONF_ID, CONF_BATTERY_LEVEL, CONF_VOLTAGE, CONF_TEMPERATURE
+from .. import RoombaComponent, roomba_component_ns, CONF_ROOMBACOMPONENT_ID
 
-from .. import roomba_component_ns, RoombaComponent, CONF_ROOMBACOMPONENT_ID
+# Define C++ classes
+RoombaChargeSensor = roomba_component_ns.class_("RoombaChargeSensor", sensor.Sensor)
+RoombaCapacitySensor = roomba_component_ns.class_("RoombaCapacitySensor", sensor.Sensor)
+RoombaVoltageSensor = roomba_component_ns.class_("RoombaVoltageSensor", sensor.Sensor)
+RoombaBatteryTempSensor = roomba_component_ns.class_("RoombaBatteryTempSensor", sensor.Sensor)
+RoombaChargingStateSensor = roomba_component_ns.class_("RoombaChargingStateSensor", sensor.Sensor)
 
-DEPENDENCIES = ["roomba_component"]
+CONF_BATTERY_CAPACITY = "battery_capacity"
+CONF_CHARGING_STATE = "charging_state"
 
-RoombaComponentSensor = roomba_component_ns.class_("RoombaComponentSensor", sensor.Sensor, cg.PollingComponent)
+# Explicit mapping with hardcoded strings to prevent "string value is None"
+SENSORS = {
+    CONF_BATTERY_LEVEL: (RoombaChargeSensor, "%", "battery", 0),
+    CONF_BATTERY_CAPACITY: (RoombaCapacitySensor, "mAh", "", 0),
+    CONF_VOLTAGE: (RoombaVoltageSensor, "V", "voltage", 2),
+    CONF_TEMPERATURE: (RoombaBatteryTempSensor, "°C", "temperature", 0),
+    CONF_CHARGING_STATE: (RoombaChargingStateSensor, "", "", 0),
+}
 
-CONFIG_SCHEMA = (
-	cv.Schema(
-		{
-			cv.GenerateID(): cv.declare_id(RoombaComponentSensor),
-			cv.GenerateID(CONF_ROOMBACOMPONENT_ID): cv.use_id(RoombaComponent),
-			cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-				unit_of_measurement=UNIT_VOLT,
-				icon="mdi:sine-wave",
-				accuracy_decimals=2,
-				device_class=DEVICE_CLASS_VOLTAGE,
-				state_class=STATE_CLASS_MEASUREMENT,
-			),
-			cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-				unit_of_measurement=UNIT_AMPERE,
-				icon="mdi:lightning-bolt",
-				accuracy_decimals=3,
-				device_class=DEVICE_CLASS_CURRENT,
-				state_class=STATE_CLASS_MEASUREMENT,
-			),
-		}
-	)
-	.extend(cv.polling_component_schema("10s"))
-)
+CONFIG_SCHEMA = cv.Schema({
+    cv.GenerateID(CONF_ROOMBACOMPONENT_ID): cv.use_id(RoombaComponent),
+}).extend({
+    cv.Optional(key): sensor.sensor_schema(
+        cls,
+        unit_of_measurement=u,
+        device_class=d if d else cv.UNDEFINED,
+        state_class="measurement",
+        accuracy_decimals=a,
+    ) for key, (cls, u, d, a) in SENSORS.items()
+})
 
 async def to_code(config):
-	var = cg.new_Pvariable(config[CONF_ID])
-	await cg.register_parented(var, config[CONF_ROOMBACOMPONENT_ID])
-	await cg.register_component(var, config)
-
-	if CONF_VOLTAGE in config:
-		sens = await sensor.new_sensor(config[CONF_VOLTAGE])
-		cg.add(var.set_voltage_sensor(sens))
-
-	if CONF_CURRENT in config:
-		sens = await sensor.new_sensor(config[CONF_CURRENT])
-		cg.add(var.set_current_sensor(sens))
+    parent = await cg.get_variable(config[CONF_ROOMBACOMPONENT_ID])
+    for key, (cls, _, _, _) in SENSORS.items():
+        if key in config:
+            conf = config[key]
+            var = cg.new_Pvariable(conf[CONF_ID])
+            await sensor.register_sensor(var, conf)
+            cg.add(parent.register_sensor(var))

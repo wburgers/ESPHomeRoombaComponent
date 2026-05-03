@@ -1,20 +1,27 @@
 esphome:
   name: roomba
-  platform: ESP8266
-  board: d1_mini
-  includes:
-    - ESPHomeRoombaComponent.h
+  friendly_name: Roomba
 
-substitutions:
-  name: "roomba"
-  # BRC pin, uart_bus, polling interval in milliseconds
-  init: 'RoombaComponent::instance(D5, id(uart_bus), 10000);'
+esp8266:
+  board: nodemcuv2
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/wburgers/ESPHomeRoombaComponent
 
 uart:
   id: uart_bus
   tx_pin: D1
   rx_pin: D2
   baud_rate: 115200
+  debug:
+    direction: BOTH
+    dummy_receiver: false
+    after:
+      delimiter: "\n\n"
+    sequence:
+      - lambda: UARTDebug::log_string(direction, bytes);
 
 # Enable logging
 logger:
@@ -22,14 +29,22 @@ logger:
 
 # Enable Home Assistant API
 api:
-  password: !secret API_password
+  custom_services: true
+  encryption:
+    key: "<your key here>"
 
 ota:
-  password: !secret OTA_password
+  - platform: esphome
+    password: !secret OTA_password
 
 wifi:
-  ssid: !secret WiFi_ssid
-  password: !secret WiFi_password
+  networks:
+  - ssid: !secret wifi_ssid_new
+    password: !secret wifi_password_new
+  - ssid: !secret wifi_ssid
+    password: !secret wifi_password
+
+  min_auth_mode: WPA2
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
@@ -43,38 +58,24 @@ status_led:
     number: GPIO2
     inverted: True
 
-custom_component:
-  - lambda: |-
-      auto r = ${init}
-      return {r};
+roomba_component:
+  id: roomba
+  update_interval: 30s
 
 sensor:
- - platform: custom
-   lambda: |-
-      auto r = ${init}
-      return {r->voltageSensor, r->currentSensor, r->batteryChargeSensor, r->batteryCapacitySensor, r->batteryPercentSensor};
-   sensors:
-     - name: "${name} voltage"
-       unit_of_measurement: "V"
-       accuracy_decimals: 2
-     - name: "${name} current"
-       unit_of_measurement: "A"
-       accuracy_decimals: 3
-     - name: "${name} charge"
-       unit_of_measurement: "Ah"
-       accuracy_decimals: 2
-     - name: "${name} capacity"
-       unit_of_measurement: "Ah"
-       accuracy_decimals: 2
-     - name: "${name} battery"
-       unit_of_measurement: "%"
-       accuracy_decimals: 0
-       
+  - platform: roomba_component
+    battery_level:
+      name: "Roomba Battery"
+    battery_capacity:
+      name: "Roomba Battery Capacity"
+    voltage:
+      name: "Roomba Voltage"
+    temperature:
+      name: "Roomba Battery Temperature"
+    charging_state:
+      name: "Roomba Charging State"
+
 text_sensor:
-  - platform: custom
-    lambda: |-
-      auto r = ${init}
-      return {r-> chargingSensor, r->activitySensor};
-    text_sensors:
-      - name: "${name} charging state"
-      - name: "${name} activity"
+  - platform: roomba_component
+    activity:
+      name: "Roomba Activity Status"

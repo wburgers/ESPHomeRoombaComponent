@@ -6,4 +6,4 @@ The gerber and schema folders provide a schema and board layout I've designed.
 I'm not a professional hardware engineer, but a software engineer, so it may not be perfect, but it works.
 
 ## Software Setup/Use
-Download this folder into the config/components folder of your ESPHome setup.
+Use the example roomba.yaml
