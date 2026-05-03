@@ -46,9 +46,9 @@ namespace esphome
 
             bool is_in_active_charging_state(uint8_t code)
             {
-                return code == static_cast<uint8_t>(ChargeState::RECONDITIONING_CHARGING) ||
-                       code == static_cast<uint8_t>(ChargeState::FULL_CHARGING) ||
-                       code == static_cast<uint8_t>(ChargeState::TRICKLE_CHARGING);
+                return code == static_cast<uint8_t>(ChargeState::CHARGE_STATE_RECONDITIONING) ||
+                       code == static_cast<uint8_t>(ChargeState::CHARGE_STATE_FULL) ||
+                       code == static_cast<uint8_t>(ChargeState::CHARGE_STATE_TRICKLE);
             }
         };
 

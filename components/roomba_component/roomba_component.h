@@ -7,7 +7,7 @@
 #include "roomba_sensor.h"
 
 #include "sensor/battery_sensors.h"
-#include "sensor/power_sensors.h"
+#include "text_sensor/power_sensors.h"
 #include "text_sensor/activity_sensor.h"
 
 #include <vector>
