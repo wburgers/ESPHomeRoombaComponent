@@ -9,8 +9,8 @@ namespace esphome
 
 		void RoombaComponent::setup()
 		{
+			register_service(&RoombaComponent::on_command, "command", {"command"});
 			this->write_byte(CMD_START);
-			this->set_safe_mode();
 		}
 
 		void RoombaComponent::dump_config()
@@ -60,8 +60,29 @@ namespace esphome
 
 		void RoombaComponent::play_locate_beep()
 		{
-			this->write_byte(CMD_PLAY);
-			this->write_byte(0);
+			uint8_t song[] = {62, 12, 66, 12, 69, 12, 74, 36};
+
+			this->set_safe_mode();
+			delay(500);
+			this->set_song(0, song, sizeof(song));
+			this->play_song(0);
+		}
+
+		void RoombaComponent::set_song(uint8_t song_number, const uint8_t *data, uint8_t len)
+		{
+			this->write_byte(CMD_SONG);
+			this->write_byte(song_number);
+			this->write_byte(len >> 1);
+			for (size_t i = 0; i < len; i++)
+			{
+				this->write_byte(data[i]);
+			}
+		}
+
+		void RoombaComponent::play_song(uint8_t song_number)
+		{
+			this->write_byte(CMD_PLAY); // 141
+			this->write_byte(song_number);
 		}
 
 		void RoombaComponent::wake_up_device()

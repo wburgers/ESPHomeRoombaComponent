@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/components/api/custom_api_device.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/log.h"
 #include "roomba_constants.h"
@@ -18,7 +19,7 @@ namespace esphome
 	namespace roomba_component
 	{
 
-		class RoombaComponent : public PollingComponent, public uart::UARTDevice
+		class RoombaComponent : public api::CustomAPIDevice, public PollingComponent, public uart::UARTDevice
 		{
 		public:
 			void register_sensor(RoombaSensor *s) { this->sensors_.push_back(s); }
@@ -32,6 +33,8 @@ namespace esphome
 			void start_cleaning();
 			void seek_dock();
 			void play_locate_beep();
+			void set_song(uint8_t song_number, const uint8_t *data, uint8_t len);
+			void play_song(uint8_t song_number);
 			void spot_clean();
 			void wake_up_device();
 			void set_safe_mode();
