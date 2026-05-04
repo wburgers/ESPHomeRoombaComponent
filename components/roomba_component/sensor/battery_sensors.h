@@ -9,12 +9,20 @@ namespace esphome
         class RoombaChargeSensor : public RoombaSensor, public sensor::Sensor
         {
         public:
-            uint8_t get_packet_id() override { return SENSOR_BATTERY_CHARGE; }
+            uint8_t get_packet_id() override { return SENSOR_GRP_21_TO_26; }
+
             void process_packet(const std::vector<uint8_t> &data) override
             {
-                if (data.size() == 2)
+                if (data.size() >= 16)
                 {
-                    this->publish_state(this->combine_bytes(data[0], data[1]));
+                    uint16_t charge = (uint16_t)data[12] << 8 | data[13];
+                    uint16_t capacity = (uint16_t)data[14] << 8 | data[15];
+
+                    if (capacity > 0)
+                    {
+                        float pct = ((float)charge / (float)capacity) * 100.0f;
+                        this->publish_state(pct);
+                    }
                 }
             }
         };
