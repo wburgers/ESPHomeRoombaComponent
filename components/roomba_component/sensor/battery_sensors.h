@@ -13,14 +13,16 @@ namespace esphome
 
             void process_packet(const std::vector<uint8_t> &data) override
             {
-                if (data.size() >= 16)
+                if (data.size() >= 10)
                 {
-                    uint16_t charge = (uint16_t)data[12] << 8 | data[13];
-                    uint16_t capacity = (uint16_t)data[14] << 8 | data[15];
+                    uint16_t charge = (uint16_t)data[6] << 8 | data[7];
+                    uint16_t capacity = (uint16_t)data[8] << 8 | data[9];
 
                     if (capacity > 0)
                     {
                         float pct = ((float)charge / (float)capacity) * 100.0f;
+                        if (pct > 100.0f)
+                            pct = 100.0f;
                         this->publish_state(pct);
                     }
                 }
