@@ -13,6 +13,7 @@
 
 #include <vector>
 #include <string>
+#include <map>
 
 namespace esphome
 {
@@ -44,6 +45,8 @@ namespace esphome
 			void request_packet(uint8_t packet_id);
 			void flush_uart_buffer();
 			bool has_read_timeout_occurred(uint32_t start_time);
+			void collect_sensor_requirements(std::map<uint8_t, std::vector<RoombaSensor *>> &packet_to_sensors);
+			std::map<uint8_t, std::vector<RoombaSensor *>> optimize_packet_requests(const std::map<uint8_t, std::vector<RoombaSensor *>> &requested_packets);
 
 			std::vector<RoombaSensor *> sensors_;
 			static const char *const TAG;

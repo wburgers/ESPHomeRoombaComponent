@@ -81,8 +81,7 @@ namespace esphome
 
 		void RoombaComponent::play_song(uint8_t song_number)
 		{
-			this->write_byte(CMD_PLAY); // 141
-			this->write_byte(song_number);
+			this->write_byte(CMD_PLAY);
 		}
 
 		void RoombaComponent::wake_up_device()
@@ -119,11 +118,9 @@ namespace esphome
 			return (millis() - start_time > 150);
 		}
 
-		void RoombaComponent::update()
+		void RoombaComponent::collect_sensor_requirements(std::map<uint8_t, std::vector<RoombaSensor *>> &packet_to_sensors)
 		{
-			if (this->sensors_.empty())
-				return;
-
+			packet_to_sensors.clear();
 			for (auto *sensor : this->sensors_)
 			{
 				uint8_t packet_id = sensor->get_packet_id();
@@ -132,7 +129,55 @@ namespace esphome
 				if (expected_len == 0)
 					continue;
 
-				this->request_packet(packet_id);
+				packet_to_sensors[packet_id].push_back(sensor);
+			}
+		}
+
+		std::map<uint8_t, std::vector<RoombaSensor *>> RoombaComponent::optimize_packet_requests(const std::map<uint8_t, std::vector<RoombaSensor *>> &requested_packets)
+		{
+			std::map<uint8_t, std::vector<RoombaSensor *>> optimized;
+
+			for (const auto &[packet_id, sensors_list] : requested_packets)
+			{
+				auto group_it = PACKET_TO_GROUP.find(packet_id);
+				if (group_it != PACKET_TO_GROUP.end())
+				{
+					uint8_t group_id = group_it->second;
+					for (auto *sensor : sensors_list)
+					{
+						optimized[group_id].push_back(sensor);
+					}
+				}
+				else
+				{
+					optimized[packet_id] = sensors_list;
+				}
+			}
+
+			return optimized;
+		}
+
+		void RoombaComponent::update()
+		{
+			if (this->sensors_.empty())
+				return;
+
+			// Collect unique packet requirements from all sensors
+			std::map<uint8_t, std::vector<RoombaSensor *>> requested_packets;
+			this->collect_sensor_requirements(requested_packets);
+
+			// Optimize requests by using group packets when multiple individual packets are requested
+			std::map<uint8_t, std::vector<RoombaSensor *>> optimized_packets = this->optimize_packet_requests(requested_packets);
+
+			// Request each optimized packet and distribute to all interested sensors
+			for (auto &[actual_packet_id, sensors_list] : optimized_packets)
+			{
+				uint8_t expected_len = PACKET_SIZES.find(actual_packet_id) != PACKET_SIZES.end() ? PACKET_SIZES.at(actual_packet_id) : 0;
+
+				if (expected_len == 0)
+					continue;
+
+				this->request_packet(actual_packet_id);
 
 				std::vector<uint8_t> buffer;
 				uint32_t start_time = millis();
@@ -148,7 +193,30 @@ namespace esphome
 
 				if (buffer.size() == expected_len)
 				{
-					sensor->process_packet(buffer);
+					// Distribute to all sensors, extracting subset data if needed
+					for (auto *sensor : sensors_list)
+					{
+						uint8_t requested_packet_id = sensor->get_packet_id();
+
+						if (requested_packet_id != actual_packet_id && GROUP_PACKET_MEMBERS.find(actual_packet_id) != GROUP_PACKET_MEMBERS.end())
+						{
+							const auto &members = GROUP_PACKET_MEMBERS.at(actual_packet_id);
+							for (const auto &member : members)
+							{
+								if (member.packet_id == requested_packet_id)
+								{
+									std::vector<uint8_t> extracted_data(buffer.begin() + member.start_byte,
+																		buffer.begin() + member.start_byte + member.byte_count);
+									sensor->process_packet(extracted_data);
+									break;
+								}
+							}
+						}
+						else
+						{
+							sensor->process_packet(buffer);
+						}
+					}
 				}
 				else
 				{
@@ -156,6 +224,5 @@ namespace esphome
 				}
 			}
 		}
-
 	}
 }

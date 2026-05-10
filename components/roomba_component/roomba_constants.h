@@ -1,5 +1,7 @@
 #pragma once
 #include <map>
+#include <vector>
+#include <string>
 #include <cstdint>
 
 namespace esphome
@@ -89,7 +91,57 @@ namespace esphome
             {CHARGE_STATE_FULL, "Full Charging"},
             {CHARGE_STATE_TRICKLE, "Trickle Charging"},
             {CHARGE_STATE_WAITING, "Waiting"},
-            {CHARGE_STATE_FAULT, "Charging Fault"}
+            {CHARGE_STATE_FAULT, "Charging Fault"}};
+
+        struct PacketMember
+        {
+            uint8_t packet_id;
+            uint8_t start_byte;
+            uint8_t byte_count;
+        };
+
+        static const std::map<uint8_t, std::vector<PacketMember>> GROUP_PACKET_MEMBERS = {
+            {SENSOR_GRP_21_TO_26,
+             {
+                 {SENSOR_CHARGING_STATE, 0, 1},
+                 {SENSOR_VOLTAGE, 1, 2},
+                 {SENSOR_CURRENT, 3, 2},
+                 {SENSOR_BATTERY_TEMP, 5, 1},
+                 {SENSOR_BATTERY_CHARGE, 6, 2},
+                 {SENSOR_BATTERY_CAPACITY, 8, 2},
+             }},
+            {SENSOR_GRP_7_TO_16,
+             {
+                 {SENSOR_BUMPS_WHEEL_DROPS, 0, 1},
+                 {SENSOR_WALL, 1, 1},
+                 {SENSOR_CLIFF_LEFT, 2, 1},
+                 {SENSOR_CLIFF_FRONT_LEFT, 3, 1},
+                 {SENSOR_CLIFF_FRONT_RIGHT, 4, 1},
+                 {SENSOR_CLIFF_RIGHT, 5, 1},
+                 {SENSOR_VIRTUAL_WALL, 6, 1},
+                 {SENSOR_OVERCURRENTS, 7, 1},
+                 {SENSOR_IR_BYTE, 8, 1},
+                 {SENSOR_BUTTONS, 9, 1},
+             }},
+        };
+
+        static const std::map<uint8_t, uint8_t> PACKET_TO_GROUP = {
+            {SENSOR_CHARGING_STATE, SENSOR_GRP_21_TO_26},
+            {SENSOR_VOLTAGE, SENSOR_GRP_21_TO_26},
+            {SENSOR_CURRENT, SENSOR_GRP_21_TO_26},
+            {SENSOR_BATTERY_TEMP, SENSOR_GRP_21_TO_26},
+            {SENSOR_BATTERY_CHARGE, SENSOR_GRP_21_TO_26},
+            {SENSOR_BATTERY_CAPACITY, SENSOR_GRP_21_TO_26},
+            {SENSOR_BUMPS_WHEEL_DROPS, SENSOR_GRP_7_TO_16},
+            {SENSOR_WALL, SENSOR_GRP_7_TO_16},
+            {SENSOR_CLIFF_LEFT, SENSOR_GRP_7_TO_16},
+            {SENSOR_CLIFF_FRONT_LEFT, SENSOR_GRP_7_TO_16},
+            {SENSOR_CLIFF_FRONT_RIGHT, SENSOR_GRP_7_TO_16},
+            {SENSOR_CLIFF_RIGHT, SENSOR_GRP_7_TO_16},
+            {SENSOR_VIRTUAL_WALL, SENSOR_GRP_7_TO_16},
+            {SENSOR_OVERCURRENTS, SENSOR_GRP_7_TO_16},
+            {SENSOR_IR_BYTE, SENSOR_GRP_7_TO_16},
+            {SENSOR_BUTTONS, SENSOR_GRP_7_TO_16},
         };
 
         enum RoombaCommand : uint8_t
