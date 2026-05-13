@@ -18,9 +18,16 @@ namespace esphome
                     uint16_t charge = (uint16_t)data[6] << 8 | data[7];
                     uint16_t capacity = (uint16_t)data[8] << 8 | data[9];
 
-                    if (capacity > 0)
+                    // Validate capacity reading - Roomba batteries are typically 2000-4000 mAh
+                    if (capacity >= 500 && capacity <= 10000)
                     {
-                        float pct = ((float)charge / (float)capacity) * 100.0f;
+                        this->last_valid_capacity_ = capacity;
+                    }
+
+                    // Use last valid capacity for percentage calculation
+                    if (this->last_valid_capacity_ > 0)
+                    {
+                        float pct = ((float)charge / (float)this->last_valid_capacity_) * 100.0f;
                         if (pct > 100.0f)
                             pct = 100.0f;
                         this->publish_state(pct);
@@ -32,6 +39,9 @@ namespace esphome
             {
                 sensor::Sensor::dump_config();
             }
+
+        private:
+            uint16_t last_valid_capacity_ = 0;
         };
 
     }
