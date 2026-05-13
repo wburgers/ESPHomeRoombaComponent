@@ -14,7 +14,8 @@ namespace esphome
             {
                 if (data.size() == 2)
                 {
-                    this->publish_state(this->combine_bytes(data[0], data[1]));
+                    int16_t current_ma = static_cast<int16_t>(this->combine_bytes(data[0], data[1]));
+                    this->publish_state(current_ma);
                 }
             }
 
