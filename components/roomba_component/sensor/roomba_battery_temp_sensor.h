@@ -25,6 +25,11 @@ namespace esphome
                     this->publish_state(filtered_temp);
                 }
             }
+
+            void dump_config() override
+            {
+                sensor::Sensor::dump_config();
+            }
         };
 
     }

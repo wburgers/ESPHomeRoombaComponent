@@ -28,6 +28,11 @@ namespace esphome
                     this->publish_state("Unknown (" + std::to_string(code) + ")");
                 }
             }
+
+            void dump_config() override
+            {
+                text_sensor::TextSensor::dump_config();
+            }
         };
 
     }

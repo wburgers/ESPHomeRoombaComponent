@@ -23,6 +23,11 @@ namespace esphome
                 this->publish_state(this->infer_activity_from_state(charging_code, current_ma));
             }
 
+            void dump_config() override
+            {
+                text_sensor::TextSensor::dump_config();
+            }
+
         protected:
             std::string infer_activity_from_state(uint8_t charging_code, int16_t current_ma)
             {

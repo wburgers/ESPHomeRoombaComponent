@@ -27,6 +27,11 @@ namespace esphome
                     }
                 }
             }
+
+            void dump_config() override
+            {
+                sensor::Sensor::dump_config();
+            }
         };
 
     }

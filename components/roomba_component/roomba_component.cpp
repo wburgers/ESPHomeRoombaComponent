@@ -16,7 +16,10 @@ namespace esphome
 		void RoombaComponent::dump_config()
 		{
 			ESP_LOGCONFIG(TAG, "Roomba Component:");
-			ESP_LOGCONFIG(TAG, "  Sensors: %zu", this->sensors_.size());
+			for (auto *sensor : this->sensors_)
+			{
+				sensor->dump_config();
+			}
 		}
 
 		void RoombaComponent::on_command(std::string command)

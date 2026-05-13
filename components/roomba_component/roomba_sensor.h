@@ -1,5 +1,6 @@
 #pragma once
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 #include "esphome/components/sensor/sensor.h"
 #include "roomba_constants.h"
 #include <vector>
@@ -13,7 +14,9 @@ namespace esphome
         class RoombaSensor
         {
         public:
+            virtual ~RoombaSensor() = default;
             virtual uint8_t get_packet_id() = 0;
+            virtual void dump_config() = 0;
 
             uint8_t get_expected_size()
             {

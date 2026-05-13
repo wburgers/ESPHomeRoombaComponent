@@ -17,6 +17,11 @@ namespace esphome
                     this->publish_state(this->combine_bytes(data[0], data[1]) / 1000.0f);
                 }
             }
+
+            void dump_config() override
+            {
+                sensor::Sensor::dump_config();
+            }
         };
 
     }
