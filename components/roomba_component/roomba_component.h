@@ -54,6 +54,7 @@ namespace esphome
 			std::map<uint8_t, std::vector<RoombaSensor *>> optimize_packet_requests(const std::map<uint8_t, std::vector<RoombaSensor *>> &requested_packets);
 
 			std::vector<RoombaSensor *> sensors_;
+			std::map<uint8_t, std::vector<RoombaSensor *>> optimized_packets_;
 			static const char *const TAG;
 		};
 

@@ -11,6 +11,10 @@ namespace esphome
 		{
 			register_service(&RoombaComponent::on_command, "command", {"command"});
 			this->write_byte(CMD_START);
+
+			std::map<uint8_t, std::vector<RoombaSensor *>> requested_packets;
+			this->collect_sensor_requirements(requested_packets);
+			this->optimized_packets_ = this->optimize_packet_requests(requested_packets);
 		}
 
 		void RoombaComponent::dump_config()
@@ -165,15 +169,7 @@ namespace esphome
 			if (this->sensors_.empty())
 				return;
 
-			// Collect unique packet requirements from all sensors
-			std::map<uint8_t, std::vector<RoombaSensor *>> requested_packets;
-			this->collect_sensor_requirements(requested_packets);
-
-			// Optimize requests by using group packets when multiple individual packets are requested
-			std::map<uint8_t, std::vector<RoombaSensor *>> optimized_packets = this->optimize_packet_requests(requested_packets);
-
-			// Request each optimized packet and distribute to all interested sensors
-			for (auto &[actual_packet_id, sensors_list] : optimized_packets)
+			for (auto &[actual_packet_id, sensors_list] : this->optimized_packets_)
 			{
 				uint8_t expected_len = PACKET_SIZES.find(actual_packet_id) != PACKET_SIZES.end() ? PACKET_SIZES.at(actual_packet_id) : 0;
 
