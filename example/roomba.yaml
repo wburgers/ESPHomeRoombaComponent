@@ -72,10 +72,41 @@ sensor:
       name: "Roomba Voltage"
     temperature:
       name: "Roomba Battery Temperature"
-    charging_state:
-      name: "Roomba Charging State"
+    current:
+      name: "Roomba Current"
+    battery_charge:
+      name: "Roomba Battery Charge"
 
 text_sensor:
   - platform: roomba_component
     activity:
       name: "Roomba Activity Status"
+    charging_state:
+      name: "Roomba Charging State"
+
+button:
+  - platform: template
+    name: "Roomba Start Cleaning"
+    icon: "mdi:play"
+    on_press:
+      - lambda: 'id(roomba).start_cleaning();'
+  - platform: template
+    name: "Roomba Seek Dock"
+    icon: "mdi:home"
+    on_press:
+      - lambda: 'id(roomba).seek_dock();'
+  - platform: template
+    name: "Roomba Spot Clean"
+    icon: "mdi:target"
+    on_press:
+      - lambda: 'id(roomba).spot_clean();'
+  - platform: template
+    name: "Roomba Wake Up"
+    icon: "mdi:power-on"
+    on_press:
+      - lambda: 'id(roomba).wake_up_device();'
+  - platform: template
+    name: "Roomba Locate"
+    icon: "mdi:magnify"
+    on_press:
+      - lambda: 'id(roomba).play_locate_beep();'

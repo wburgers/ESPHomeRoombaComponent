@@ -7,9 +7,14 @@
 #include "roomba_constants.h"
 #include "roomba_sensor.h"
 
-#include "sensor/battery_sensors.h"
-#include "text_sensor/power_sensors.h"
-#include "text_sensor/activity_sensor.h"
+#include "sensor/roomba_charge_sensor.h"
+#include "sensor/roomba_capacity_sensor.h"
+#include "sensor/roomba_voltage_sensor.h"
+#include "sensor/roomba_battery_temp_sensor.h"
+#include "sensor/roomba_current_sensor.h"
+#include "sensor/roomba_battery_charge_sensor.h"
+#include "text_sensor/roomba_activity_sensor.h"
+#include "text_sensor/roomba_charging_state_text_sensor.h"
 
 #include <vector>
 #include <string>

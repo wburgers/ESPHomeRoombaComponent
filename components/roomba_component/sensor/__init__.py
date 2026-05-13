@@ -9,8 +9,12 @@ RoombaChargeSensor = roomba_component_ns.class_("RoombaChargeSensor", sensor.Sen
 RoombaCapacitySensor = roomba_component_ns.class_("RoombaCapacitySensor", sensor.Sensor)
 RoombaVoltageSensor = roomba_component_ns.class_("RoombaVoltageSensor", sensor.Sensor)
 RoombaBatteryTempSensor = roomba_component_ns.class_("RoombaBatteryTempSensor", sensor.Sensor)
+RoombaCurrentSensor = roomba_component_ns.class_("RoombaCurrentSensor", sensor.Sensor)
+RoombaBatteryChargeSensor = roomba_component_ns.class_("RoombaBatteryChargeSensor", sensor.Sensor)
 
 CONF_BATTERY_CAPACITY = "battery_capacity"
+CONF_CURRENT = "current"
+CONF_BATTERY_CHARGE = "battery_charge"
 
 # Explicit mapping with hardcoded strings to prevent "string value is None"
 SENSORS = {
@@ -18,6 +22,8 @@ SENSORS = {
     CONF_BATTERY_CAPACITY: (RoombaCapacitySensor, "mAh", "", 0),
     CONF_VOLTAGE: (RoombaVoltageSensor, "V", "voltage", 2),
     CONF_TEMPERATURE: (RoombaBatteryTempSensor, "°C", "temperature", 0),
+    CONF_CURRENT: (RoombaCurrentSensor, "mA", "current", 0),
+    CONF_BATTERY_CHARGE: (RoombaBatteryChargeSensor, "mAh", "battery", 0),
 }
 
 CONFIG_SCHEMA = cv.Schema({
