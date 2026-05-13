@@ -37,7 +37,9 @@ namespace esphome
 
             void dump_config() override
             {
-                sensor::Sensor::dump_config();
+                ESP_LOGCONFIG("roomba.sensor", "Roomba Battery Charge Sensor:");
+                ESP_LOGCONFIG("roomba.sensor", "  Packet ID: %u, Expected size: %u", this->get_packet_id(), this->get_expected_size());
+                ESP_LOGCONFIG("roomba.sensor", "  Last valid capacity: %u mAh", this->last_valid_capacity_);
             }
 
         private:

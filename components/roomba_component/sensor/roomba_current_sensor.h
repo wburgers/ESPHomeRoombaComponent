@@ -21,7 +21,8 @@ namespace esphome
 
             void dump_config() override
             {
-                sensor::Sensor::dump_config();
+                ESP_LOGCONFIG("roomba.sensor", "Roomba Current Sensor:");
+                ESP_LOGCONFIG("roomba.sensor", "  Packet ID: %u, Expected size: %u", this->get_packet_id(), this->get_expected_size());
             }
         };
 

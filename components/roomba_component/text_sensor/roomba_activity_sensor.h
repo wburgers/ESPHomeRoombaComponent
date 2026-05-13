@@ -25,7 +25,8 @@ namespace esphome
 
             void dump_config() override
             {
-                text_sensor::TextSensor::dump_config();
+                ESP_LOGCONFIG("roomba.text_sensor", "Roomba Activity Sensor:");
+                ESP_LOGCONFIG("roomba.text_sensor", "  Packet ID: %u, Expected size: %u", this->get_packet_id(), this->get_expected_size());
             }
 
         protected:
