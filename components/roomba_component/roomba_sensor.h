@@ -5,6 +5,7 @@
 #include "roomba_constants.h"
 #include <vector>
 #include <cmath>
+#include <cfloat>
 
 namespace esphome
 {
@@ -35,9 +36,9 @@ namespace esphome
                 return (static_cast<uint16_t>(high) << 8) | low;
             }
 
-            bool is_reading_plausible(float new_value, float max_limit)
+            bool is_reading_plausible(float new_value, float min_limit, float max_limit)
             {
-                return std::isnan(last_valid_value_) || new_value <= max_limit;
+                return std::isnan(last_valid_value_) || (new_value >= min_limit && new_value <= max_limit);
             }
 
             bool is_stable_transition(float new_value, float max_diff)
@@ -54,7 +55,25 @@ namespace esphome
 
             float validate_and_filter(float new_value, float max_limit, float max_diff)
             {
-                if (!this->is_reading_plausible(new_value, max_limit))
+                if (!this->is_reading_plausible(new_value, -FLT_MAX, max_limit))
+                {
+                    return last_valid_value_;
+                }
+
+                if (this->is_stable_transition(new_value, max_diff) || this->should_force_update_after_misses(5))
+                {
+                    this->missed_reading_count_ = 0;
+                    this->last_valid_value_ = new_value;
+                    return new_value;
+                }
+
+                this->missed_reading_count_++;
+                return last_valid_value_;
+            }
+
+            float validate_and_filter(float new_value, float max_limit, float min_limit, float max_diff)
+            {
+                if (!this->is_reading_plausible(new_value, min_limit, max_limit))
                 {
                     return last_valid_value_;
                 }

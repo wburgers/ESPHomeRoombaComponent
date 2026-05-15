@@ -14,7 +14,17 @@ namespace esphome
             {
                 if (data.size() == 2)
                 {
-                    this->publish_state(this->combine_bytes(data[0], data[1]));
+                    uint16_t charge = this->combine_bytes(data[0], data[1]);
+
+                    // Validate charge reading - Roomba batteries are typically 2000-4000 mAh
+                    if (charge >= 500 && charge <= 10000)
+                    {
+                        float filtered_charge = this->validate_and_filter(charge, 10000.0f, 500.0f);
+                        if (!std::isnan(filtered_charge))
+                        {
+                            this->publish_state(filtered_charge);
+                        }
+                    }
                 }
             }
 
